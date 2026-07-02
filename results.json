@@ -1,0 +1,16 @@
+{
+  "updated": "2026-07-02T07:00:00+00:00",
+  "days": 3,
+  "places": [
+    {"rank": 1, "name": "Granholmen Camping (Sandefjord)", "lat": 59.0888, "lon": 10.2229, "score": 0.91, "avg_temp_c": 22.2, "avg_sun_hours": 8.4, "avg_wind_kmh": 11.2, "avg_precip_prob": 8},
+    {"rank": 2, "name": "Solplassen & Rakke Camping (Stavern)", "lat": 58.9842, "lon": 10.0303, "score": 0.87, "avg_temp_c": 21.9, "avg_sun_hours": 8.1, "avg_wind_kmh": 12.0, "avg_precip_prob": 12},
+    {"rank": 3, "name": "Ørastranda Camping (Nøtterøy)", "lat": 59.2143, "lon": 10.3702, "score": 0.84, "avg_temp_c": 21.6, "avg_sun_hours": 7.9, "avg_wind_kmh": 11.8, "avg_precip_prob": 10},
+    {"rank": 4, "name": "Arendal", "lat": 58.4611, "lon": 8.7692, "score": 0.72, "avg_temp_c": 20.4, "avg_sun_hours": 7.0, "avg_wind_kmh": 13.5, "avg_precip_prob": 18},
+    {"rank": 5, "name": "København", "lat": 55.6761, "lon": 12.5683, "score": 0.65, "avg_temp_c": 20.9, "avg_sun_hours": 6.2, "avg_wind_kmh": 15.1, "avg_precip_prob": 22},
+    {"rank": 6, "name": "Göteborg", "lat": 57.7089, "lon": 11.9746, "score": 0.58, "avg_temp_c": 20.1, "avg_sun_hours": 5.9, "avg_wind_kmh": 16.4, "avg_precip_prob": 28},
+    {"rank": 7, "name": "Kristiansand Feriesenter", "lat": 58.1220, "lon": 8.0658, "score": 0.55, "avg_temp_c": 19.8, "avg_sun_hours": 5.8, "avg_wind_kmh": 14.9, "avg_precip_prob": 25},
+    {"rank": 8, "name": "Halmstad", "lat": 56.6745, "lon": 12.8567, "score": 0.49, "avg_temp_c": 19.2, "avg_sun_hours": 5.1, "avg_wind_kmh": 17.0, "avg_precip_prob": 35},
+    {"rank": 9, "name": "Skagen", "lat": 57.7208, "lon": 10.5844, "score": 0.41, "avg_temp_c": 18.5, "avg_sun_hours": 4.6, "avg_wind_kmh": 19.2, "avg_precip_prob": 20},
+    {"rank": 10, "name": "Stavanger", "lat": 58.9700, "lon": 5.7331, "score": 0.28, "avg_temp_c": 17.2, "avg_sun_hours": 3.4, "avg_wind_kmh": 22.5, "avg_precip_prob": 45}
+  ]
+}
