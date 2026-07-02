@@ -25,8 +25,11 @@ jobs:
       - name: Installer avhengigheter
         run: pip install requests
 
+      - name: Vis repo-struktur (debug)
+        run: find . -name "*.py" -not -path "./.git/*"
+
       - name: Kjør værsjekk
-        run: python3 weather-agent/best_weather_route.py --days 3 --notify --ntfy-topic ${{ secrets.NTFY_TOPIC }}
+        run: python3 best_weather_route.py --days 3 --notify --ntfy-topic ${{ secrets.NTFY_TOPIC }}
 
       - name: Lagre tilstand (last_best.json) tilbake til repoet
         run: |
