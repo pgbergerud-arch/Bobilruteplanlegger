@@ -19,6 +19,8 @@ import os
 from datetime import datetime, timezone
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ---------------------------------------------------------------------------
 # 1) KANDIDATSTEDER — faktiske campingplasser med 4.0+ i Google-vurdering
@@ -130,29 +132,51 @@ WEIGHTS = {
     "wind": 0.25,  # lavere vind = bedre, håndteres i scoring
 }
 
+DAILY_VARS = [
+    "temperature_2m_max",
+    "sunshine_duration",
+    "windspeed_10m_max",
+    "precipitation_probability_max",
+]
+
+# Antall steder per API-kall. Open-Meteo støtter batching via kommaseparerte
+# koordinater i én forespørsel, noe som er langt mer stabilt og raskere enn
+# ett kall per sted (unngår rate limiting / tilfeldige timeouts).
+BATCH_SIZE = 25
+
+# Gjenbrukbar session med automatiske retries ved timeout/serverfeil
+_session = requests.Session()
+_retry = Retry(
+    total=5,
+    backoff_factor=2,  # 2s, 4s, 8s, 16s, 32s mellom forsøk
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET"],
+)
+_session.mount("https://", HTTPAdapter(max_retries=_retry))
+
 
 # ---------------------------------------------------------------------------
-# 2) HENT VÆRDATA
+# 2) HENT VÆRDATA (batchet, med retries)
 # ---------------------------------------------------------------------------
-def fetch_forecast(lat: float, lon: float, days: int) -> dict:
-    """Henter daglig værvarsel fra Open-Meteo for gitt koordinat."""
+def fetch_forecast_batch(places: list[dict], days: int) -> list[dict]:
+    """Henter daglig værvarsel for en gruppe steder i ett API-kall."""
     params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": ",".join(
-            [
-                "temperature_2m_max",
-                "sunshine_duration",
-                "windspeed_10m_max",
-                "precipitation_probability_max",
-            ]
-        ),
+        "latitude": ",".join(str(p["lat"]) for p in places),
+        "longitude": ",".join(str(p["lon"]) for p in places),
+        "daily": ",".join(DAILY_VARS),
         "forecast_days": min(days, 16),
         "timezone": "auto",
     }
-    resp = requests.get(OPEN_METEO_URL, params=params, timeout=120)
+    resp = _session.get(OPEN_METEO_URL, params=params, timeout=60)
     resp.raise_for_status()
-    return resp.json()["daily"]
+    data = resp.json()
+    # Ved kun ett sted returnerer Open-Meteo et enkelt objekt, ikke en liste
+    return data if isinstance(data, list) else [data]
+
+
+def chunked(seq: list, size: int):
+    for i in range(0, len(seq), size):
+        yield seq[i : i + size]
 
 
 # ---------------------------------------------------------------------------
@@ -160,26 +184,28 @@ def fetch_forecast(lat: float, lon: float, days: int) -> dict:
 # ---------------------------------------------------------------------------
 def score_candidates(days: int) -> list[dict]:
     raw = []
-    for place in CANDIDATES:
-        daily = fetch_forecast(place["lat"], place["lon"], days)
-        n = len(daily["time"])
-        avg_temp = sum(daily["temperature_2m_max"][:n]) / n
-        avg_sun_hours = sum(daily["sunshine_duration"][:n]) / n / 3600  # sek -> timer
-        avg_wind = sum(daily["windspeed_10m_max"][:n]) / n
-        avg_precip_prob = sum(daily["precipitation_probability_max"][:n]) / n
+    for batch in chunked(CANDIDATES, BATCH_SIZE):
+        results = fetch_forecast_batch(batch, days)
+        for place, result in zip(batch, results):
+            daily = result["daily"]
+            n = len(daily["time"])
+            avg_temp = sum(daily["temperature_2m_max"][:n]) / n
+            avg_sun_hours = sum(daily["sunshine_duration"][:n]) / n / 3600  # sek -> timer
+            avg_wind = sum(daily["windspeed_10m_max"][:n]) / n
+            avg_precip_prob = sum(daily["precipitation_probability_max"][:n]) / n
 
-        raw.append(
-            {
-                "name": place["name"],
-                "lat": place["lat"],
-                "lon": place["lon"],
-                "avg_temp_c": round(avg_temp, 1),
-                "avg_sun_hours": round(avg_sun_hours, 1),
-                "avg_wind_kmh": round(avg_wind, 1),
-                "avg_precip_prob": round(avg_precip_prob, 0),
-                "daily": daily,
-            }
-        )
+            raw.append(
+                {
+                    "name": place["name"],
+                    "lat": place["lat"],
+                    "lon": place["lon"],
+                    "avg_temp_c": round(avg_temp, 1),
+                    "avg_sun_hours": round(avg_sun_hours, 1),
+                    "avg_wind_kmh": round(avg_wind, 1),
+                    "avg_precip_prob": round(avg_precip_prob, 0),
+                    "daily": daily,
+                }
+            )
 
     # Normaliser hver faktor 0-1 på tvers av kandidatene, så vi kan vekte dem
     temps = [r["avg_temp_c"] for r in raw]
