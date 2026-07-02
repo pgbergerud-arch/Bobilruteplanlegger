@@ -150,7 +150,7 @@ def fetch_forecast(lat: float, lon: float, days: int) -> dict:
         "forecast_days": min(days, 16),
         "timezone": "auto",
     }
-    resp = requests.get(OPEN_METEO_URL, params=params, timeout=30)
+    resp = requests.get(OPEN_METEO_URL, params=params, timeout=120)
     resp.raise_for_status()
     return resp.json()["daily"]
 
