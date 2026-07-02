@@ -1,0 +1,33 @@
+name: Daily weather route check
+
+on:
+  schedule:
+    # 07:00 norsk sommertid (UTC+2) = 05:00 UTC
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}  # lar deg også trigge den manuelt fra GitHub-fanen "Actions"
+
+jobs:
+  check-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sjekk ut repoet
+        uses: actions/checkout@v4
+
+      - name: Sett opp Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer avhengigheter
+        run: pip install requests
+
+      - name: Kjør værsjekk
+        run: python3 best_weather_route.py --days 3 --notify --ntfy-topic ${{ secrets.NTFY_TOPIC }}
+
+      - name: Lagre tilstand (last_best.json) tilbake til repoet
+        run: |
+          git config user.name "weather-agent-bot"
+          git config user.email "actions@github.com"
+          git add last_best.json
+          git diff --staged --quiet || git commit -m "Oppdater sist beste sted [skip ci]"
+          git push
