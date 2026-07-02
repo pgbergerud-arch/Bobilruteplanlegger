@@ -253,6 +253,7 @@ def notify_ntfy(topic: str, message: str, title: str = "Værrute-agent"):
 # 5) TILSTAND — husk forrige beste sted, så vi kun varsler ved endring
 # ---------------------------------------------------------------------------
 STATE_FILE = os.path.join(os.path.dirname(__file__), "last_best.json")
+RESULTS_FILE = os.path.join(os.path.dirname(__file__), "docs", "results.json")
 
 
 def load_last_best():
@@ -265,6 +266,31 @@ def load_last_best():
 def save_last_best(name: str):
     with open(STATE_FILE, "w") as f:
         json.dump({"name": name, "updated": datetime.now(timezone.utc).isoformat()}, f)
+
+
+def save_results_json(ranked: list[dict], days: int):
+    """Skriver rangert resultat til docs/results.json for dashboardet (index.html)."""
+    os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
+    payload = {
+        "updated": datetime.now(timezone.utc).isoformat(),
+        "days": days,
+        "places": [
+            {
+                "rank": i + 1,
+                "name": r["name"],
+                "lat": r["lat"],
+                "lon": r["lon"],
+                "score": r["score"],
+                "avg_temp_c": r["avg_temp_c"],
+                "avg_sun_hours": r["avg_sun_hours"],
+                "avg_wind_kmh": r["avg_wind_kmh"],
+                "avg_precip_prob": r["avg_precip_prob"],
+            }
+            for i, r in enumerate(ranked)
+        ],
+    }
+    with open(RESULTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +315,8 @@ def main():
 
     best = ranked[0]
     last_best = load_last_best()
+
+    save_results_json(ranked, args.days)
 
     if args.notify and best["name"] != last_best:
         msg = (
