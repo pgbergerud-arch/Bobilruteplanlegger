@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Værrute — beste campingvær akkurat nå</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b1d26;
+    --panel: #10242f;
+    --panel-2: #142c39;
+    --line: #24404d;
+    --text: #e8ede9;
+    --text-dim: #9fb4bd;
+    --amber: #f2a65a;
+    --amber-dim: #7a5c38;
+    --fjord: #4c7a8c;
+    --good: #6fbf8f;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: linear-gradient(180deg, var(--panel-2), var(--bg));
+  }
+  header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  header h1 span {
+    color: var(--amber);
+  }
+  #ticker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  #ticker strong {
+    color: var(--amber);
+    font-weight: 700;
+  }
+  #locBtn {
+    margin-left: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  #locBtn:hover { border-color: var(--amber); color: var(--amber); }
+  #locBtn.active { border-color: var(--good); color: var(--good); }
+  #sortRow {
+    display: flex;
+    gap: 6px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sortBtn {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .sortBtn.active { border-color: var(--amber); color: var(--amber); }
+  #driveRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 18px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  #driveStatus {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    min-height: 0;
+  }
+  #map { width: 100%; height: 100%; background: var(--bg); }
+  aside {
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    background: var(--panel);
+  }
+  .meta {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+    text-align: left;
+    padding: 8px 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--line);
+    cursor: default;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  tbody tr:hover, tbody tr.active {
+    background: var(--panel-2);
+  }
+  tbody td {
+    padding: 9px 10px;
+    vertical-align: middle;
+  }
+  .rank {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    width: 26px;
+  }
+  .rank.top1 { color: var(--amber); font-weight: 700; }
+  .name { font-weight: 500; }
+  .num {
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .scorebar {
+    display: inline-block;
+    width: 34px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--line);
+    position: relative;
+    overflow: hidden;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .scorebar > i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--fjord), var(--amber));
+  }
+  footer {
+    padding: 8px 18px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  #loading, #empty {
+    padding: 40px 18px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    text-align: center;
+  }
+  .leaflet-popup-content-wrapper {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .popup-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; margin-bottom: 4px; }
+  .popup-stats { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); }
+
+  @media (max-width: 820px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+    aside { border-left: none; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vær<span>rute</span></h1>
+  <div id="ticker">Laster siste kjøring …</div>
+  <button id="locBtn" type="button">📍 Bruk min posisjon</button>
+</header>
+
+<main>
+  <div id="map"></div>
+  <aside>
+    <div class="meta" id="meta">—</div>
+    <div id="sortRow" style="display:none">
+      <button class="sortBtn active" data-sort="score">Beste vær</button>
+      <button class="sortBtn" data-sort="distance">Nærmest meg</button>
+      <button class="sortBtn" data-sort="combined">Best i nærheten</button>
+    </div>
+    <div id="driveRow" style="display:none">
+      <button id="driveToggle" class="sortBtn">🚗 Maks 8t kjøring</button>
+      <span id="driveStatus"></span>
+    </div>
+    <div id="loading">Henter results.json …</div>
+    <table id="tbl" style="display:none">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Sted</th>
+          <th style="text-align:right">Score</th>
+          <th style="text-align:right">°C</th>
+          <th style="text-align:right">Sol</th>
+          <th style="text-align:right">Vind</th>
+          <th style="text-align:right" id="distHeader">km</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </aside>
+</main>
+
+<footer>Data: open-meteo.com · Oppdateres daglig via GitHub Actions</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  const map = L.map('map', { zoomControl: true }).setView([60.5, 10], 5);
+
+  // Mørkt kartlag som passer paletten
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 18,
+  }).addTo(map);
+
+  const markers = [];
+  let currentData = null;
+  let userPos = null;       // {lat, lon}
+  let userMarker = null;
+  let sortMode = 'score';   // 'score' | 'distance' | 'combined'
+
+  function colorForScore(score, min, max) {
+    const t = max > min ? (score - min) / (max - min) : 0.5;
+    // interpoler mellom fjord-bla (#4C7A8C) og amber (#F2A65A)
+    const c1 = [76, 122, 140];
+    const c2 = [242, 166, 90];
+    const c = c1.map((v, i) => Math.round(v + (c2[i] - v) * t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  // Haversine — avstand i km mellom to koordinater
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  const locBtn = document.getElementById('locBtn');
+  locBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      alert('Denne nettleseren/enheten støtter ikke posisjonsdeling.');
+      return;
+    }
+    locBtn.textContent = '📍 Henter posisjon …';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        locBtn.textContent = '📍 Posisjon aktiv';
+        locBtn.classList.add('active');
+        document.getElementById('sortRow').style.display = 'flex';
+        document.getElementById('driveRow').style.display = 'flex';
+        document.getElementById('distHeader').textContent = 'km';
+
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.circleMarker([userPos.lat, userPos.lon], {
+          radius: 8,
+          color: '#6fbf8f',
+          fillColor: '#6fbf8f',
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map).bindPopup('Du er her');
+        map.setView([userPos.lat, userPos.lon], 7);
+
+        sortMode = 'combined';
+        document.querySelectorAll('.sortBtn').forEach(b =>
+          b.classList.toggle('active', b.dataset.sort === 'combined'));
+        if (currentData) render(currentData);
+      },
+      (err) => {
+        locBtn.textContent = '📍 Bruk min posisjon';
+        alert(
+          'Fikk ikke tilgang til posisjonen din. Sjekk at du har gitt ' +
+          'nettleseren tillatelse til stedstjenester for denne siden (fungerer ' +
+          'kun over HTTPS, som GitHub Pages allerede bruker).'
+        );
+        console.error(err);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+
+  document.getElementById('sortRow').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sortBtn');
+    if (!btn) return;
+    sortMode = btn.dataset.sort;
+    document.querySelectorAll('.sortBtn').forEach(b => b.classList.toggle('active', b === btn));
+    if (currentData) render(currentData);
+  });
+
+  // --- Kjøretid via OSRM (gratis, ingen API-nøkkel) ---
+  let driveTimes = null;      // Map: navn -> timer (kjøretid)
+  let driveActive = false;
+  const MAX_DRIVE_HOURS = 8;
+  const OSRM_CHUNK = 40;      // destinasjoner per kall, holder URL innenfor trygge grenser
+
+  function chunkArray(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  async function fetchDriveTimes(pos, places) {
+    const result = {};
+    const chunks = chunkArray(places, OSRM_CHUNK);
+    for (const chunk of chunks) {
+      const coords = [`${pos.lon},${pos.lat}`, ...chunk.map(p => `${p.lon},${p.lat}`)].join(';');
+      const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&annotations=duration`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('OSRM svarte ' + res.status);
+        const json = await res.json();
+        const durations = json.durations?.[0];
+        if (!durations) throw new Error('Mangler durations i svaret');
+        chunk.forEach((p, i) => {
+          const sec = durations[i + 1]; // indeks 0 er kilden selv
+          result[p.name] = sec != null ? sec / 3600 : null;
+        });
+      } catch (err) {
+        console.warn('OSRM-kall feilet for en gruppe, bruker luftlinje-estimat i stedet:', err);
+        // Fallback: estimer kjøretid ut fra luftlinje og en gjennomsnittlig
+        // hastighet på 65 km/t (inkl. svinger, pauser — typisk for norske/nordiske veier)
+        chunk.forEach(p => {
+          const km = distanceKm(pos.lat, pos.lon, p.lat, p.lon);
+          result[p.name] = (km / 65) * 1.25; // +25% for at veier ikke går i luftlinje
+        });
+      }
+    }
+    return result;
+  }
+
+  document.getElementById('driveToggle').addEventListener('click', async () => {
+    const btn = document.getElementById('driveToggle');
+    const status = document.getElementById('driveStatus');
+
+    if (!userPos) {
+      alert('Del posisjonen din først med "Bruk min posisjon"-knappen.');
+      return;
+    }
+
+    if (driveActive) {
+      driveActive = false;
+      btn.classList.remove('active');
+      status.textContent = '';
+      if (currentData) render(currentData);
+      return;
+    }
+
+    btn.textContent = '🚗 Beregner kjøretid …';
+    status.textContent = `henter fra ${currentData.places.length} steder …`;
+
+    driveTimes = await fetchDriveTimes(userPos, currentData.places);
+
+    driveActive = true;
+    btn.textContent = '🚗 Maks 8t kjøring';
+    btn.classList.add('active');
+    const within = Object.values(driveTimes).filter(h => h != null && h <= MAX_DRIVE_HOURS).length;
+    status.textContent = `${within} av ${currentData.places.length} innenfor 8t`;
+
+    if (currentData) render(currentData);
+  });
+
+  async function load() {
+    try {
+      const res = await fetch('results.json?_=' + Date.now());
+      if (!res.ok) throw new Error('Fant ikke results.json ennå');
+      currentData = await res.json();
+      render(currentData);
+    } catch (err) {
+      document.getElementById('loading').textContent =
+        'Ingen data ennå — vent til workflowen har kjørt minst én gang.';
+      document.getElementById('ticker').textContent = 'Ingen kjøring registrert ennå.';
+    }
+  }
+
+  function render(data) {
+    let places = (data.places || []).map(p => ({ ...p }));
+    if (!places.length) {
+      document.getElementById('loading').textContent = 'Tom resultatliste.';
+      return;
+    }
+
+    const scores = places.map(p => p.score);
+    const sMin = Math.min(...scores), sMax = Math.max(...scores);
+
+    // Beregn avstand og en kombinert "praktisk score" hvis vi har posisjon
+    if (userPos) {
+      places.forEach(p => {
+        p.distance_km = Math.round(distanceKm(userPos.lat, userPos.lon, p.lat, p.lon));
+      });
+      const distances = places.map(p => p.distance_km);
+      const dMin = Math.min(...distances), dMax = Math.max(...distances);
+      places.forEach(p => {
+        const scoreNorm = sMax > sMin ? (p.score - sMin) / (sMax - sMin) : 0.5;
+        const distNorm = dMax > dMin ? 1 - (p.distance_km - dMin) / (dMax - dMin) : 0.5;
+        // Kombinert: 60% vær, 40% nærhet
+        p.combined_score = Math.round((0.6 * scoreNorm + 0.4 * distNorm) * 100) / 100;
+      });
+    }
+
+    // Legg på kjøretid hvis beregnet, og filtrer til maks 8t hvis toggle er aktiv
+    if (driveTimes) {
+      places.forEach(p => { p.drive_hours = driveTimes[p.name] ?? null; });
+    }
+    if (driveActive && driveTimes) {
+      places = places.filter(p => p.drive_hours != null && p.drive_hours <= MAX_DRIVE_HOURS);
+      if (!places.length) {
+        document.getElementById('tbody').innerHTML = '';
+        document.getElementById('ticker').textContent =
+          'Ingen steder innenfor 8 timers kjøring fant værdata — prøv å utvide listen med flere kandidater i nærheten.';
+        markers.forEach(m => map.removeLayer(m));
+        markers.length = 0;
+        return;
+      }
+    }
+
+    // Sorter etter valgt modus
+    if (sortMode === 'distance' && userPos) {
+      places.sort((a, b) => a.distance_km - b.distance_km);
+    } else if (sortMode === 'combined' && userPos) {
+      places.sort((a, b) => b.combined_score - a.combined_score);
+    } else {
+      places.sort((a, b) => a.rank - b.rank);
+    }
+
+    const best = places[0];
+    const updated = new Date(data.updated);
+
+    if (driveActive) {
+      document.getElementById('ticker').innerHTML =
+        `→ Beste vær innen 8t kjøring: <strong>${best.name}</strong> · ${best.drive_hours.toFixed(1)}t kjøring · ${best.avg_temp_c}°C · ${best.avg_sun_hours}t sol`;
+    } else if (sortMode !== 'score' && userPos) {
+      const label = sortMode === 'distance' ? 'Nærmest deg' : 'Best i nærheten';
+      document.getElementById('ticker').innerHTML =
+        `→ ${label}: <strong>${best.name}</strong> · ${best.distance_km} km unna · ${best.avg_temp_c}°C · ${best.avg_sun_hours}t sol`;
+    } else {
+      document.getElementById('ticker').innerHTML =
+        `→ Best akkurat nå: <strong>${best.name}</strong> · ${best.avg_temp_c}°C · ${best.avg_sun_hours}t sol · ${best.avg_wind_kmh} km/h vind`;
+    }
+    document.getElementById('meta').textContent =
+      `${places.length} steder · ${data.days} dagers snitt · oppdatert ${updated.toLocaleString('no-NO')}`;
+
+    markers.forEach(m => map.removeLayer(m));
+    markers.length = 0;
+    places.forEach((p, i) => {
+      const color = colorForScore(p.score, sMin, sMax);
+      const radius = 6 + (p.score - sMin) / (sMax - sMin || 1) * 10;
+      const marker = L.circleMarker([p.lat, p.lon], {
+        radius,
+        color,
+        fillColor: color,
+        fillOpacity: 0.75,
+        weight: i === 0 ? 2 : 1,
+      }).addTo(map);
+      const distLine = p.distance_km != null ? ` · ${p.distance_km} km unna` : '';
+      const driveLine = p.drive_hours != null ? ` · ${p.drive_hours.toFixed(1)}t kjøring` : '';
+      marker.bindPopup(
+        `<div class="popup-name">#${p.rank} ${p.name}</div>` +
+        `<div class="popup-stats">${p.avg_temp_c}°C · ${p.avg_sun_hours}t sol · ${p.avg_wind_kmh} km/h vind · ${p.avg_precip_prob}% nedbør${distLine}${driveLine}</div>`
+      );
+      markers.push(marker);
+    });
+
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    document.getElementById('distHeader').textContent = driveActive ? 'kjøretid' : (userPos ? 'km' : '');
+    places.forEach((p, i) => {
+      const tr = document.createElement('tr');
+      const barWidth = Math.round(((p.score - sMin) / (sMax - sMin || 1)) * 100);
+      let distCell = '—';
+      if (driveActive && p.drive_hours != null) {
+        const h = Math.floor(p.drive_hours);
+        const m = Math.round((p.drive_hours - h) * 60);
+        distCell = `${h}t${m ? ' ' + m + 'm' : ''}`;
+      } else if (p.distance_km != null) {
+        distCell = p.distance_km;
+      }
+      tr.innerHTML = `
+        <td class="rank ${i === 0 ? 'top1' : ''}">${p.rank}</td>
+        <td class="name">${p.name}</td>
+        <td class="num"><span class="scorebar"><i style="width:${barWidth}%"></i></span>${p.score}</td>
+        <td class="num">${p.avg_temp_c}</td>
+        <td class="num">${p.avg_sun_hours}t</td>
+        <td class="num">${p.avg_wind_kmh}</td>
+        <td class="num">${distCell}</td>
+      `;
+      tr.addEventListener('click', () => {
+        map.setView([p.lat, p.lon], 9, { animate: true });
+        markers[i].openPopup();
+        document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('active'));
+        tr.classList.add('active');
+      });
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('tbl').style.display = 'table';
+  }
+
+  load();
+</script>
+</body>
+</html>
