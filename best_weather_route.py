@@ -68,6 +68,20 @@ CANDIDATES = [
     {"name": "Rena camping leisure", "lat": 61.1384, "lon": 11.3796},
     {"name": "Fagernes Camping Park", "lat": 60.9818, "lon": 9.2314},
     {"name": "Fossen Camping Fagernes", "lat": 61.0333, "lon": 9.1769},
+    {"name": "First Camp Beitostølen (Valdres)", "lat": 61.2413, "lon": 8.9200},
+    {"name": "Bøflaten Camping (Vang i Valdres)", "lat": 61.1306, "lon": 8.5445},
+    {"name": "Rogn Camping (Ryfoss, Valdres)", "lat": 61.1519, "lon": 8.7259},
+    # --- NORGE: Setesdal ---
+    {"name": "Odden Camping (Evje)", "lat": 58.5857, "lon": 7.7943},
+    {"name": "Oddestemmen Steinsliperi og Camping (Evje)", "lat": 58.6008, "lon": 7.8430},
+    {"name": "Fennefoss Camping (Evje/Hornnes)", "lat": 58.5752, "lon": 7.7763},
+    {"name": "Hovden Fjellstoge (Setesdal)", "lat": 59.5794, "lon": 7.3891},
+    {"name": "Byklestøylane Camping (Bykle)", "lat": 59.3894, "lon": 7.3929},
+    # --- NORGE: Sogn og Fjordane ---
+    {"name": "Kjørnes Camping (Sogndal)", "lat": 61.2117, "lon": 7.1210},
+    {"name": "Uteplassen Sogndal Fjell og natur-camping", "lat": 61.3391, "lon": 6.9264},
+    {"name": "Laerdal Holiday and Leisure Park", "lat": 61.1005, "lon": 7.4697},
+    {"name": "Veganeset Camping (Balestrand)", "lat": 61.2158, "lon": 6.5620},
     # --- NORGE: Trøndelag / Nord-Norge ---
     {"name": "Storsand Gård Camping (Trondheim)", "lat": 63.4322, "lon": 10.7086},
     {"name": "Lofoten Beach Camp", "lat": 68.1032, "lon": 13.2946},
