@@ -178,12 +178,14 @@ CANDIDATES = [
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
-# Vekting av de tre faktorene (må summere til 1.0)
+# Vekting av de fire faktorene (må summere til 1.0)
 WEIGHTS = {
     "temperature": 0.40,
     "sunshine": 0.35,
-    "wind": 0.25,  # lavere vind = bedre, håndteres i scoring
+    "wind": 0.10,        # lavere vind = bedre, håndteres i scoring
+    "precipitation": 0.15,  # lavere nedbørssannsynlighet = bedre, håndteres i scoring
 }
+assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9, "WEIGHTS må summere til 1.0"
 
 DAILY_VARS = [
     "temperature_2m_max",
@@ -303,6 +305,7 @@ def score_candidates(days: int) -> list[dict]:
     temps = [r["avg_temp_c"] for r in raw]
     suns = [r["avg_sun_hours"] for r in raw]
     winds = [r["avg_wind_kmh"] for r in raw]
+    precips = [r["avg_precip_prob"] for r in raw]
 
     def norm(val, lo, hi, invert=False):
         if hi == lo:
@@ -314,11 +317,13 @@ def score_candidates(days: int) -> list[dict]:
         t_score = norm(r["avg_temp_c"], min(temps), max(temps))
         s_score = norm(r["avg_sun_hours"], min(suns), max(suns))
         w_score = norm(r["avg_wind_kmh"], min(winds), max(winds), invert=True)  # lavere vind = bedre
+        p_score = norm(r["avg_precip_prob"], min(precips), max(precips), invert=True)  # lavere nedbør = bedre
 
         r["score"] = round(
             WEIGHTS["temperature"] * t_score
             + WEIGHTS["sunshine"] * s_score
-            + WEIGHTS["wind"] * w_score,
+            + WEIGHTS["wind"] * w_score
+            + WEIGHTS["precipitation"] * p_score,
             3,
         )
 
