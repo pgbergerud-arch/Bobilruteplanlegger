@@ -200,6 +200,11 @@ DAILY_VARS = [
 # batcher er raskere å behandle server-side og gir kortere respons-ventetid.
 BATCH_SIZE = 15
 
+# Hvor mange dager vi alltid henter rådata for fra Open-Meteo, uavhengig av
+# --days. Gjør at docs/results.json inneholder nok daglige data til at
+# dashbordet kan la brukeren velge 3/5/10-dagers snitt uten et nytt API-kall.
+API_FETCH_DAYS = 10
+
 # Gjenbrukbar session med automatiske retries ved timeout/serverfeil.
 # Open-Meteo sin gratis-API har ingen oppetids-garanti og deler IP-rom med
 # mange andre tjenester (Vercel, GitHub Actions osv.) — sporadiske timeouts
@@ -224,12 +229,17 @@ class BatchFetchError(Exception):
 
 
 def fetch_forecast_batch(places: list[dict], days: int) -> list[dict]:
-    """Henter daglig værvarsel for en gruppe steder i ett API-kall."""
+    """Henter daglig værvarsel for en gruppe steder i ett API-kall.
+
+    Henter alltid minst API_FETCH_DAYS dager (selv om `days` er lavere),
+    slik at dashbordet har nok rådata til 3/5/10-dagers-valget.
+    """
+    fetch_days = min(max(days, API_FETCH_DAYS), 16)
     params = {
         "latitude": ",".join(str(p["lat"]) for p in places),
         "longitude": ",".join(str(p["lon"]) for p in places),
         "daily": ",".join(DAILY_VARS),
-        "forecast_days": min(days, 16),
+        "forecast_days": fetch_days,
         "timezone": "auto",
     }
     try:
@@ -268,7 +278,7 @@ def score_candidates(days: int) -> list[dict]:
 
         for place, result in zip(batch, results):
             daily = result["daily"]
-            n = len(daily["time"])
+            n = min(days, len(daily["time"]))  # bruk kun det forespurte vinduet til hoved-scoren
             avg_temp = sum(daily["temperature_2m_max"][:n]) / n
             avg_sun_hours = sum(daily["sunshine_duration"][:n]) / n / 3600  # sek -> timer
             avg_wind = sum(daily["windspeed_10m_max"][:n]) / n
@@ -366,11 +376,17 @@ def save_last_best(name: str):
 
 
 def save_results_json(ranked: list[dict], days: int):
-    """Skriver rangert resultat til docs/results.json for dashboardet (index.html)."""
+    """Skriver rangert resultat til docs/results.json for dashboardet (index.html).
+
+    Inkluderer daglige rådata (ikke bare snittet) per sted, slik at dashbordet
+    kan la brukeren velge periodelengde (3/5/10 dager) og regne ut nytt snitt
+    og ny score direkte i nettleseren, uten å måtte kjøre scriptet på nytt.
+    """
     os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
     payload = {
         "updated": datetime.now(timezone.utc).isoformat(),
         "days": days,
+        "weights": WEIGHTS,
         "places": [
             {
                 "rank": i + 1,
@@ -382,6 +398,12 @@ def save_results_json(ranked: list[dict], days: int):
                 "avg_sun_hours": r["avg_sun_hours"],
                 "avg_wind_kmh": r["avg_wind_kmh"],
                 "avg_precip_prob": r["avg_precip_prob"],
+                "daily": {
+                    "temp": r["daily"]["temperature_2m_max"],
+                    "sun_hours": [round(s / 3600, 2) for s in r["daily"]["sunshine_duration"]],
+                    "wind": r["daily"]["windspeed_10m_max"],
+                    "precip": r["daily"]["precipitation_probability_max"],
+                },
             }
             for i, r in enumerate(ranked)
         ],
