@@ -155,23 +155,33 @@ DAILY_VARS = [
 
 # Antall steder per API-kall. Open-Meteo støtter batching via kommaseparerte
 # koordinater i én forespørsel, noe som er langt mer stabilt og raskere enn
-# ett kall per sted (unngår rate limiting / tilfeldige timeouts).
-BATCH_SIZE = 25
+# ett kall per sted (unngår rate limiting / tilfeldige timeouts). Mindre
+# batcher er raskere å behandle server-side og gir kortere respons-ventetid.
+BATCH_SIZE = 15
 
-# Gjenbrukbar session med automatiske retries ved timeout/serverfeil
+# Gjenbrukbar session med automatiske retries ved timeout/serverfeil.
+# Open-Meteo sin gratis-API har ingen oppetids-garanti og deler IP-rom med
+# mange andre tjenester (Vercel, GitHub Actions osv.) — sporadiske timeouts
+# er et kjent, dokumentert problem på deres side, ikke noe galt med koden.
 _session = requests.Session()
 _retry = Retry(
-    total=5,
-    backoff_factor=2,  # 2s, 4s, 8s, 16s, 32s mellom forsøk
+    total=3,
+    backoff_factor=2,  # 2s, 4s, 8s mellom forsøk
     status_forcelist=[429, 500, 502, 503, 504],
     allowed_methods=["GET"],
 )
 _session.mount("https://", HTTPAdapter(max_retries=_retry))
 
+REQUEST_TIMEOUT = 45  # sekunder per forsøk
+
 
 # ---------------------------------------------------------------------------
 # 2) HENT VÆRDATA (batchet, med retries)
 # ---------------------------------------------------------------------------
+class BatchFetchError(Exception):
+    """Kastes når en batch ikke lot seg hente selv etter retries."""
+
+
 def fetch_forecast_batch(places: list[dict], days: int) -> list[dict]:
     """Henter daglig værvarsel for en gruppe steder i ett API-kall."""
     params = {
@@ -181,8 +191,11 @@ def fetch_forecast_batch(places: list[dict], days: int) -> list[dict]:
         "forecast_days": min(days, 16),
         "timezone": "auto",
     }
-    resp = _session.get(OPEN_METEO_URL, params=params, timeout=60)
-    resp.raise_for_status()
+    try:
+        resp = _session.get(OPEN_METEO_URL, params=params, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise BatchFetchError(f"Klarte ikke hente vær for {len(places)} steder: {e}") from e
     data = resp.json()
     # Ved kun ett sted returnerer Open-Meteo et enkelt objekt, ikke en liste
     return data if isinstance(data, list) else [data]
@@ -198,8 +211,20 @@ def chunked(seq: list, size: int):
 # ---------------------------------------------------------------------------
 def score_candidates(days: int) -> list[dict]:
     raw = []
+    failed_batches = 0
+    skipped_places = []
+
     for batch in chunked(CANDIDATES, BATCH_SIZE):
-        results = fetch_forecast_batch(batch, days)
+        try:
+            results = fetch_forecast_batch(batch, days)
+        except BatchFetchError as e:
+            # Ikke la én treg/feilende batch krasje hele kjøringen —
+            # hopp over disse stedene denne runden og fortsett med resten.
+            failed_batches += 1
+            skipped_places.extend(p["name"] for p in batch)
+            print(f"ADVARSEL: {e}")
+            continue
+
         for place, result in zip(batch, results):
             daily = result["daily"]
             n = len(daily["time"])
@@ -220,6 +245,20 @@ def score_candidates(days: int) -> list[dict]:
                     "daily": daily,
                 }
             )
+
+    if failed_batches:
+        print(
+            f"\n{failed_batches} batch(er) feilet og ble hoppet over "
+            f"({len(skipped_places)} steder uten data denne runden): "
+            f"{', '.join(skipped_places[:10])}"
+            + (" …" if len(skipped_places) > 10 else "")
+        )
+
+    if not raw:
+        raise RuntimeError(
+            "Ingen steder ga værdata denne runden — Open-Meteo er sannsynligvis "
+            "midlertidig nede eller treg. Avbryter uten å overskrive tidligere resultater."
+        )
 
     # Normaliser hver faktor 0-1 på tvers av kandidatene, så vi kan vekte dem
     temps = [r["avg_temp_c"] for r in raw]
@@ -345,4 +384,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as e:
+        print(f"\nFEIL: {e}")
+        raise SystemExit(1)
